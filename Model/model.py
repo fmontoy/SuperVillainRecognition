@@ -7,6 +7,8 @@ import numpy as np
 from tensorflow import keras
 import matplotlib.pyplot as plt
 import string
+import segmentation
+
 TRAINING_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) + '/Dataset/Caracteres/'
 fileNames=[]
 class_names_numbers = ['0', '1', '2', '3', '4','5', '6', '7', '8', '9']
@@ -39,10 +41,10 @@ def datafetching():
     y_char = np.array(y_char)
     x_nums, y_nums = shuffle_in_unison(x_nums,y_nums)
     x_char,y_char =shuffle_in_unison(x_char,y_char)
-    x_nums_training, x_nums_test = x_nums[:188,:], x_nums[188:,:]
-    y_nums_training, y_nums_test = y_nums[:188,:], y_nums[188:,:]
-    x_char_training, x_char_test = x_char[:188,:], x_char[188:,:]
-    y_char_training, y_char_test = y_char[:188,:], y_char[188:,:]
+    x_nums_training, x_nums_test = x_nums[:,:], x_nums[188:,:]
+    y_nums_training, y_nums_test = y_nums[:,:], y_nums[188:,:]
+    x_char_training, x_char_test = x_char[:,:], x_char[188:,:]
+    y_char_training, y_char_test = y_char[:,:], y_char[188:,:]
     return x_nums_training,x_nums_test,y_nums_training,y_nums_test,x_char_training,x_char_test,y_char_training,y_char_test
 
     
@@ -67,42 +69,19 @@ def trainNums(x_train,y_train,x_test,y_test):
               loss='sparse_categorical_crossentropy',
               metrics=['accuracy'])
     model.fit(x_train, y_train, epochs=5)
-    ypred = model.predict(x_test)
-    ypred=np.argmax(ypred, axis =1)
-    print(ypred, np.transpose(y_test))
-    test_loss, test_acc = model.evaluate(x_test,y_test)
-    print('Test accuracy:', test_acc, '. Test loss: ', test_loss)
+    return model
 
 def trainChar(x_train,y_train,x_test,y_test):
     model = keras.Sequential([
     keras.layers.Flatten(input_shape=(50,25)),
-    keras.layers.Dense(128, activation=tf.nn.tanh),
-    keras.layers.Dense(128, activation=tf.nn.tanh),
     keras.layers.Dense(128, activation=tf.nn.tanh),
     keras.layers.Dense(26, activation=tf.nn.softmax)
     ])
     model.compile(optimizer=tf.train.AdamOptimizer(), 
               loss='sparse_categorical_crossentropy',
               metrics=['accuracy'])
-    model.fit(x_train, y_train, epochs=10)
-    ypred = model.predict(x_test)
-    ypred=np.argmax(ypred, axis =1)
-    ypred=[chr(i+97) for i in ypred]
-    y_testi = [chr(i[0]+97) for i in y_test]
-    y_print = []
-    for i in range(len(ypred)):
-        y_print.append([ypred[i], y_testi[i]])
-    for i in range(len(ypred)):
-        if(y_print[i][0]!=y_print[i][1]):
-            plt.figure()
-            plt.xticks([])
-            plt.yticks([])
-            plt.grid(False)
-            plt.imshow(x_test[i], cmap=plt.cm.binary)
-            plt.xlabel(ypred[i])
-            plt.show()
-    test_loss, test_acc = model.evaluate(x_test,y_test)
-    print('Test accuracy:', test_acc, '. Test loss: ', test_loss)
+    model.fit(x_train, y_train, epochs=5)
+    return model
 
 
 """plt.figure(figsize=(10,10))
@@ -114,10 +93,21 @@ for i in range(25):
     plt.imshow(x_nums[i], cmap=plt.cm.binary)
     plt.xlabel(y_nums[i])
 plt.show()"""
+
+
 def main():
     x_nums_training,x_nums_test,y_nums_training,y_nums_test,x_char_training,x_char_test,y_char_training,y_char_test = datafetching()
-    trainNums(x_nums_training,y_nums_training,x_nums_test,y_nums_test)
-    trainChar(x_char_training,y_char_training,x_char_test,y_char_test)
-
+    nummod=trainNums(x_nums_training,y_nums_training,x_nums_test,y_nums_test)
+    charmod=trainChar(x_char_training,y_char_training,x_char_test,y_char_test)
+    preds = segmentation.characters
+    for i in preds:
+        img = cv2.bitwise_not(i)
+        x = np.array([cv2.resize(img, (25,50))[:,:]])        
+        numpred=nummod.predict(x)
+        charpred=charmod.predict(x)
+        if np.max(charpred) < np.max(numpred):
+            print(np.argmax(numpred, axis =1))
+        else:
+            print(chr(np.argmax(charpred, axis =1)+97))
 if __name__ == '__main__':
     main()
